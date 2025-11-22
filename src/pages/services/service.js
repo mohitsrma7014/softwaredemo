@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // ✅ Base API URL
-export const BASE_URL = "http://127.0.0.1:8000/";
+export const BASE_URL = "https://demo-softwarebackend.onrender.com/";
 // ✅ Create an axios instance
 const api = axios.create({
   baseURL: BASE_URL,

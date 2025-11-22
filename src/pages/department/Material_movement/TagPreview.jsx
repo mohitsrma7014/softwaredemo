@@ -1,0 +1,180 @@
+import React from "react";
+import QRCode from "react-qr-code";
+import logo from "../../../assets/logo.png";
+import api,{ BASE_URL } from "../../services/service";
+
+const TagPreview = ({ generatedTag, resetForm }) => {
+  const handlePrint = async () => {
+    if (generatedTag && !generatedTag.is_printed) {
+      try {
+        await api.post(
+          `${BASE_URL}/raw_material/api/tags/${generatedTag.id}/mark_printed/`
+        );
+        generatedTag.is_printed = true;
+      } catch (error) {
+        console.error("Error marking tag as printed:", error);
+      }
+    }
+    window.print();
+  };
+
+  if (!generatedTag) return null;
+
+  // Status color mapping
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'ok': return 'bg-green-500';
+      case 'reject': return 'bg-red-500';
+      case 'rework': return 'bg-orange-500';
+      default: return 'bg-yellow-500';
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'ok': return 'OK';
+      case 'reject': return 'REJECT';
+      case 'rework': return 'REWORK';
+      default: return 'PENDING';
+    }
+  };
+
+  const qrData = JSON.stringify({
+    uid: generatedTag.tag_uid,
+    batch_id: generatedTag.batch_id,
+    component: generatedTag.component,
+    qty: generatedTag.qty,
+    grade: generatedTag.grade,
+    heat_no: generatedTag.heat_no,
+    customer: generatedTag.customer,
+    current_process: generatedTag.current_process,
+    next_process: generatedTag.next_process,
+    generated_by: generatedTag.generated_by,
+    generated_at: generatedTag.generated_at,
+    status: generatedTag.status, // Include status in QR code
+  });
+
+  return (
+    <div className="w-full flex flex-col items-center p-2">
+      {/* Printable Tag */}
+      <div className="printable-tag bg-white border-2 border-gray-400 rounded-xl shadow-md p-2 w-[370px] h-[230px] relative">
+        {/* Top Section */}
+        <div className="flex justify-between items-start">
+          <div className="flex items-start justify-between w-full border-b pb-2">
+            {/* Logo on the left */}
+            <img src={logo} alt="Logo" className="w-28 object-contain" />
+
+            {/* Info on the right */}
+            <div className="text-right text-sm text-gray-800 font-semibold flex flex-col gap-0 mt-4">
+             
+              <span>
+                {generatedTag.current_process} <span className="mx-1 text-gray-500 font-bold">→</span> {generatedTag.next_process}
+              </span>
+            </div>
+          </div>
+
+          {/* Status Badge */}
+          {/* <div className={`absolute top-3 right-3 px-2 py-1 rounded-full text-white text-xs font-bold ${getStatusColor(generatedTag.status)}`}>
+            {getStatusText(generatedTag.status)}
+          </div> */}
+
+          {/* Corner hole style circle */}
+          <div className="w-6 h-6 border-2 border-gray-400 rounded-full absolute top-3 right-3 "></div>
+        </div>
+
+        {/* Details Section */}
+        <div className="flex justify-between mt-1">
+          <div className="text-[12px] space-y-0">
+            <p>
+              <strong>BATCH NO:</strong>{" "}
+              <span className="font-semibold">{generatedTag.batch_id}</span>
+            </p>
+            <p>
+              <strong>COMPONENT:</strong>{" "}
+              <span className="font-semibold">{generatedTag.component}</span>
+            </p>
+            <p>
+              <strong>CUSTOMER:</strong>{" "}
+              <span className="font-semibold">{generatedTag.customer}</span>
+            </p>
+            <p>
+              <strong>HEAT NO:</strong>{" "}
+              <span className="font-semibold">{generatedTag.heat_no || "-"}</span>
+            </p>
+            <p>
+              <strong>GRADE:</strong>{" "}
+              <span className="font-semibold">{generatedTag.grade}</span>
+            </p>
+            <p>
+              <strong>Quantity:</strong>{" "}
+              <span className="font-semibold">{generatedTag.qty} Pcs.</span>
+            </p>
+            <p>
+              <strong>STATUS:</strong>{" "}
+              <span className={`font-semibold uppercase ${getStatusColor(generatedTag.status).replace('bg-', 'text-')}`}>
+                {getStatusText(generatedTag.status)}
+              </span>
+            </p>
+          </div>
+
+          <div className="flex flex-col items-center">
+            <QRCode value={qrData} size={90} />
+            <p className="text-xs font-bold text-[#002b6d] mt-2">
+              TAG UID: {generatedTag.tag_uid}
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="absolute bottom-2 left-0 w-full text-[10px] text-gray-600 border-t pt-1 flex justify-between items-center px-2">
+          {/* <span className="text-center flex-1 text-center">SSB Engineers Pvt. Ltd. | System Generated Tag</span> */}
+          <span className=" text-left">Generated By: {generatedTag.generated_by}</span>
+              <span className=" text-right">
+                Generated At: {new Date(generatedTag.generated_at).toLocaleString("en-IN")}
+              </span>
+        </div>
+      </div>
+
+      {/* Status Information */}
+      <div className="mt-4 p-4 bg-gray-100 rounded-lg no-print">
+        <h3 className="font-bold mb-2">Status Information:</h3>
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <div className="flex items-center">
+            <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+            <span>OK - Material can proceed to next operation</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+            <span>REJECT - Material cannot be used further</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 bg-orange-500 rounded-full mr-2"></div>
+            <span>REWORK - Material needs rework in current process</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
+            <span>PENDING - Awaiting inspection/decision</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Buttons */}
+      <div className="flex gap-3 mt-4 no-print">
+        <button
+          onClick={handlePrint}
+          className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+        >
+          Print Tag
+        </button>
+        <button
+          onClick={resetForm}
+          className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
+        >
+          Generate New Tag
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default TagPreview;

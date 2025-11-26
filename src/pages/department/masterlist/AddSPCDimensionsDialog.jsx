@@ -47,7 +47,7 @@ function AddSPCDimensionsDialog({ open, onClose, component }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const createdBy = user ? `${user.name} ${user.lastname}` : 'Unknown';
+  const createdBy = user ? `${user.first_name || user.name || ""} ${user.last_name || user.lastname || ""}`.trim() : "";
 
   const handleChange = (index, field) => (e) => {
     const newDimensions = [...dimensions];
@@ -91,7 +91,7 @@ const handleSubmit = async () => {
         : parseInt(dim.spc_time_period_days)
     }));
 
-    const response = await api.post('/raw_material/api/spc-dimensions/bulk-create/', {
+    const response = await api.post('api/raw_material/spc-dimensions/bulk-create/', {
       dimensions: dataToSend
     });
 

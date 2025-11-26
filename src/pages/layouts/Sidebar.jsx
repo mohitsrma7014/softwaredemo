@@ -115,7 +115,9 @@ const Sidebar = ({ logout, onWidthChange }) => {
         { name: "Master List", path: "/masterlist/Master_list" },
         { name: "NPD Part Tracking", path: "/production/heat_treatment" },
         { name: "Calibration", path: "/production/heat_treatment" },
-        { name: "IMS Documents", path: "/production/heat_treatment" },
+        { name: "IMS Documents", path: "/QMS/QmsDocumentViewer" },
+        { name: "Upload IMS Procedures", path: "/QMS/ProcedureDocumentsPage" },
+        { name: "Upload IMS Manuals", path: "/QMS/ManualDocumentsPage" },
       ],
     },
     {

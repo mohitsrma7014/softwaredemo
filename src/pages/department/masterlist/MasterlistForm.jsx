@@ -1,500 +1,460 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import api,{ BASE_URL } from "../../services/service";
+import React, { useState, useEffect, useRef } from 'react';
+import api from "../../services/service";
 import { useAuth } from "../../../context/AuthContext";
-
 
 const MasterlistForm = () => {
   const [formData, setFormData] = useState({
-    component: '',
-    part_name: '',
-    customer: '',
-    customer_location: '',
-    drawing_rev_number: '',
-    drawing_rev_date: '',
-    forging_line: '',
-    drawing_sr_number: '',
-    standerd: '',
-    supplier:'',
-    grade: '',
-    slug_weight: '',
-    dia: '',
-    ht_process: '',
-    hardness_required: '',
-    running_status: '',
-    packing_condition: '',
-    ring_weight: '',
-    cost: '',
-    op_10_time: '',
-    op_10_target: '',
-    op_20_time: '',
-    op_20_target: '',
-    cnc_target_remark: '',
-    verified_by: ''
+    component: "",
+    part_name: "",
+    customer: "",
+    customer_location: "",
+    drawing_rev_number: "",
+    drawing_rev_date: "",
+    forging_line: "",
+    drawing_sr_number: "",
+    standerd: "",
+    supplier: "",
+    grade: "",
+    slug_weight: "",
+    dia: "",
+    ht_process: "",
+    hardness_required: "",
+    running_status: "",
+    packing_condition: "",
+    ring_weight: "",
+    cost: "",
+    op_10_time: "",
+    op_10_target: "",
+    op_20_time: "",
+    op_20_target: "",
+    cnc_target_remark: "",
+    verified_by: "",
   });
 
-  const [suggestions, setSuggestions] = useState({
+  const [allSuggestions, setAllSuggestions] = useState({
     customer: [],
-    grade: []
+    grade: [],
+    supplier: [],
+    customer_location: [],
+    forging_line: [],
   });
 
-  // Dropdown options
+  const [filteredSuggestions, setFilteredSuggestions] = useState({
+    customer: [],
+    grade: [],
+    supplier: [],
+    customer_location: [],
+    forging_line: [],
+  });
+
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [selectedValues, setSelectedValues] = useState({
+    customer: null,
+    supplier: null,
+    grade: null,
+    customer_location: null,
+    forging_line: null,
+  });
+
+  const dropdownRefs = useRef({});
+
+  // Define dropdown options locally
   const dropdownOptions = {
-    customer_location: [
-      
-      'Bawal',
-      'Brazil',
-      'Bhiwadi',
-      'Belgaum',
-      'Faridabad',
-      'GHAZIABAD',
-      'Jaipur',
-      'Noida',
-      'NAWA SHEVA',
-      'Sanand'
-    ],
-    forging_line: [
-      'A-Set',
-      'W-Set',
-      'FFL',
-      '1600 TON',
-      '1000 Ton',
-      'Hammer',
-    ],
-    running_status: [
-      'Running',
-      'NPD',
-      
-    ]
+    running_status: ["NPD", "Running", "Not Running"],
   };
-  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
-  
-    const toggleSidebar = () => {
-      setIsSidebarVisible(!isSidebarVisible);
-    };
-    const pageTitle = "Add New Component";
-const { user } = useAuth();
 
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+  const { user } = useAuth();
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Auto-fill verified_by when component mounts
-    useEffect(() => {
+  // Fetch all suggestions on component mount
+  useEffect(() => {
+    fetchAllSuggestions();
+  }, []);
+
+  useEffect(() => {
     if (user) {
       const firstName = user.first_name || user.name || "";
       const lastName = user.last_name || user.lastname || "";
-
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        verified_by: `${firstName} ${lastName}`.trim()
+        verified_by: `${firstName} ${lastName}`.trim(),
       }));
     }
   }, [user]);
 
-
-  const handleInputChange = async (field, value) => {
-    setErrorMessage('');
-    setFormData(prev => ({ ...prev, [field]: value }));
-
-    // Fetch suggestions only for the specified fields
-    const suggestionFields = ['customer', 'grade'];
-    if (suggestionFields.includes(field) && value.length > 1) {
-      try {
-        const endpointField = field === 'grade' ? 'grades' : `${field}s`;
-        const response = await api.get(
-            `/raw_material/${endpointField}_suggestions/`,
-          {
-            params: { q: value },
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-            }
-          }
-        );
-        setSuggestions(prev => ({ ...prev, [field]: response.data }));
-      } catch (error) {
-        console.error(`Failed to fetch ${field} suggestions:`, error);
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const isOutside = Object.values(dropdownRefs.current).every(ref => 
+        ref && !ref.contains(event.target)
+      );
+      if (isOutside) {
+        setActiveDropdown(null);
       }
-    } else {
-      // Clear suggestions if input is too short or not a suggestion field
-      setSuggestions(prev => ({ ...prev, [field]: [] }));
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchAllSuggestions = async () => {
+    try {
+      setIsLoading(true);
+      const types = ['CUSTOMER', 'GRADE', 'SUPPLIER', 'LOCATION', 'FORGING_LINE'];
+      const responses = await Promise.all(
+        types.map(type => 
+          api.get("api/raw_material/", {
+            params: { type: type, search: "" },
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+            },
+          })
+        )
+      );
+
+      const newAllSuggestions = {
+        customer: responses[0].data || [],
+        grade: responses[1].data || [],
+        supplier: responses[2].data || [],
+        customer_location: responses[3].data || [],
+        forging_line: responses[4].data || [],
+      };
+
+      setAllSuggestions(newAllSuggestions);
+      
+      // Also populate dropdown options
+      dropdownOptions.customer_location = newAllSuggestions.customer_location.map(item => getDisplayValue(item));
+      dropdownOptions.forging_line = newAllSuggestions.forging_line.map(item => getDisplayValue(item));
+
+    } catch (error) {
+      console.error("Failed to fetch suggestions:", error);
+      setErrorMessage("Failed to load form data. Please refresh the page.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleSuggestionClick = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    setSuggestions(prev => ({ ...prev, [field]: [] }));
+  // Helper function to get display value from suggestion item
+  const getDisplayValue = (item) => {
+    if (!item) return "";
+    return item?.name || item || "";
+  };
+
+  // Helper function to normalize string for comparison
+  const normalizeString = (str) => {
+    if (!str) return "";
+    return str.toString().trim().toLowerCase();
+  };
+
+  const filterSuggestions = (field, value) => {
+    if (!value) {
+      setFilteredSuggestions(prev => ({ ...prev, [field]: allSuggestions[field].slice(0, 10) }));
+      return;
+    }
+
+    const fieldSuggestions = allSuggestions[field];
+    const normalizedValue = normalizeString(value);
+    
+    const filtered = fieldSuggestions.filter(item => {
+      const itemValue = getDisplayValue(item);
+      return normalizeString(itemValue).includes(normalizedValue);
+    }).slice(0, 10); // Limit to 10 suggestions
+
+    setFilteredSuggestions(prev => ({ ...prev, [field]: filtered }));
+  };
+
+  const handleInputFocus = (field) => {
+    setActiveDropdown(field);
+    // Show first 10 suggestions when focusing empty field
+    if (!formData[field]) {
+      setFilteredSuggestions(prev => ({ 
+        ...prev, 
+        [field]: allSuggestions[field].slice(0, 10) 
+      }));
+    }
+  };
+
+  const handleInputChange = async (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setErrorMessage("");
+
+    // Clear selected value when user starts typing
+    if (value !== getDisplayValue(selectedValues[field])) {
+      setSelectedValues(prev => ({ ...prev, [field]: null }));
+    }
+
+    // Filter suggestions from pre-loaded data
+    filterSuggestions(field, value);
+
+    // Show dropdown
+    setActiveDropdown(field);
+  };
+
+  const handleSuggestionClick = (field, item) => {
+    const value = getDisplayValue(item);
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setSelectedValues(prev => ({ ...prev, [field]: item }));
+    setActiveDropdown(null);
+    setFilteredSuggestions(prev => ({ ...prev, [field]: [] }));
+  };
+
+  const handleInputBlur = (field, value) => {
+    // Delay hiding dropdown to allow for click events
+    setTimeout(() => {
+      setActiveDropdown(null);
+    }, 200);
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    let isValid = true;
+
+    // Check required fields
+    const requiredFields = ['customer', 'supplier', 'grade'];
+    requiredFields.forEach(field => {
+      const value = formData[field];
+      if (!value) {
+        errors[field] = `${field.replace('_', ' ')} is required`;
+        isValid = false;
+      } else if (!selectedValues[field]) {
+        errors[field] = `Please select a valid ${field.replace('_', ' ')} from the dropdown`;
+        isValid = false;
+      }
+    });
+
+    // Check optional suggestion fields (if they have value, they must have selected value)
+    const optionalFields = ['customer_location', 'forging_line'];
+    optionalFields.forEach(field => {
+      const value = formData[field];
+      if (value && !selectedValues[field]) {
+        errors[field] = `Please select a valid ${field.replace('_', ' ')} from the dropdown`;
+        isValid = false;
+      }
+    });
+
+    // Basic field validations
+    if (!formData.component) {
+      errors.component = "Component is required";
+      isValid = false;
+    }
+    if (!formData.part_name) {
+      errors.part_name = "Part name is required";
+      isValid = false;
+    }
+
+    return isValid;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrorMessage('');
-    setSuccessMessage('');
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    // Validate form before submission
+    if (!validateForm()) {
+      setErrorMessage("Please fix the validation errors before submitting. Select From Drop Down");
+      return;
+    }
 
     try {
       const response = await api.post(
-        'api/raw_material/api/masterlist/create/',
+        "api/raw_material/api/masterlist/create/",
         formData,
         {
           headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-          }
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+          },
         }
       );
 
-      if (response.data.status === 'success') {
-        setSuccessMessage('Record added successfully!');
-        // Reset form (except verified_by)
+      if (response.data.status === "success") {
+        setSuccessMessage("Record added successfully!");
+        // Reset form while keeping verified_by
         setFormData(prev => ({
           ...Object.fromEntries(
-            Object.keys(prev).map(key => [key, key === 'verified_by' ? prev.verified_by : ''])
-          )
+            Object.keys(prev).map((key) => [
+              key,
+              key === "verified_by" ? prev.verified_by : "",
+            ])
+          ),
         }));
+        // Clear all selections and suggestions
+        setSelectedValues({
+          customer: null,
+          supplier: null,
+          grade: null,
+          customer_location: null,
+          forging_line: null,
+        });
+        setFilteredSuggestions({
+          customer: [],
+          grade: [],
+          supplier: [],
+          customer_location: [],
+          forging_line: [],
+        });
+        setActiveDropdown(null);
       }
     } catch (error) {
-      setErrorMessage(error.response?.data?.message || 'An error occurred');
+      setErrorMessage(error.response?.data?.message || "An error occurred");
     }
   };
 
+  // Common input field configuration
+  const inputFields = [
+    { id: "component", label: "Component*", type: "text", required: true },
+    { id: "part_name", label: "Part Name*", type: "text", required: true },
+    { id: "drawing_sr_number", label: "Drawing Number*", type: "number", required: true },
+    { id: "drawing_rev_number", label: "Drawing Rev Number", type: "text", required: false },
+    { id: "drawing_rev_date", label: "Drawing Rev Date", type: "text", required: false },
+    { id: "standerd", label: "Standard*", type: "text", required: true },
+    { id: "dia", label: "Bar Diameter(MM)*", type: "number", required: true },
+    { id: "ht_process", label: "HT Process*", type: "text", required: true },
+    { id: "slug_weight", label: "Slug Weight(Kg)*", type: "number", step: "0.01", required: true },
+    { id: "ring_weight", label: "Ring Weight(Kg)*", type: "number", step: "0.01", required: true },
+    { id: "cost", label: "Cost(Rs)*", type: "number", step: "0.01", required: true },
+    { id: "hardness_required", label: "Hardness Required", type: "text", required: false },
+    { id: "packing_condition", label: "Packing Condition", type: "text", required: false },
+    { id: "op_10_time", label: "OP 10 Time (seconds)", type: "number", required: false },
+    { id: "op_10_target", label: "OP 10 Target", type: "number", required: false },
+    { id: "op_20_time", label: "OP 20 Time (seconds)", type: "number", required: false },
+    { id: "op_20_target", label: "OP 20 Target", type: "number", required: false },
+  ];
+
+  // Fields with suggestions
+  const suggestionFields = [
+    { id: "customer", label: "Customer*", required: true },
+    { id: "supplier", label: "Supplier*", required: true },
+    { id: "grade", label: "Material Grade*", required: true },
+    { id: "customer_location", label: "Delivery Location", required: false },
+    { id: "forging_line", label: "Forging Line", required: false },
+  ];
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-2">
+        <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading form data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex">
-        
     <div className="container mx-auto p-2">
-      
-     
-
-      <form onSubmit={handleSubmit} className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-      {successMessage && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-          {successMessage}
-        </div>
-      )}
-      
-      {errorMessage && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {errorMessage}
-        </div>
-      )}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-2">
-          {/* Basic Information */}
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="component">
-              Component*
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="component"
-              name="component"
-              type="text"
-              value={formData.component}
-              onChange={(e) => handleInputChange('component', e.target.value)}
-              autoComplete="off" // <- This disables browser autocomplete
-              required
-            />
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4"
+      >
+        {successMessage && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+            {successMessage}
           </div>
+        )}
 
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="part_name">
-              Part Name*
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="part_name"
-              name="part_name"
-              type="text"
-              value={formData.part_name}
-              onChange={(e) => handleInputChange('part_name', e.target.value)}
-              autoComplete="off" // <- This disables browser autocomplete
-              required
-            />
+        {errorMessage && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {errorMessage}
           </div>
+        )}
 
-          {/* Customer with suggestions */}
-          <div className="mb-4 relative">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="customer">
-              Customer*
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="customer"
-              name="customer"
-              type="text"
-              value={formData.customer}
-              onChange={(e) => handleInputChange('customer', e.target.value)}
-              autoComplete="off" // <- This disables browser autocomplete
-              required
-            />
-            {suggestions.customer.length > 0 && (
-              <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                {suggestions.customer.map((item, index) => (
-                  <li
-                    key={index}
-                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                    onClick={() => handleSuggestionClick('customer', item)}
-                  >
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2">
+          {/* Render basic input fields */}
+          {inputFields.map((field) => (
+            <div key={field.id} className="mb-2">
+              <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor={field.id}>
+                {field.label}
+              </label>
+              <input
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                id={field.id}
+                name={field.id}
+                type={field.type}
+                step={field.step}
+                value={formData[field.id]}
+                onChange={(e) => handleInputChange(field.id, e.target.value)}
+                autoComplete="off"
+                required={field.required}
+              />
+            </div>
+          ))}
 
-          {/* Drawing Information */}
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="drawing_sr_number">
-              Drawing Number*
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="drawing_sr_number"
-              name="drawing_sr_number"
-              type="number"
-              value={formData.drawing_sr_number}
-              onChange={(e) => handleInputChange('drawing_sr_number', e.target.value)}
-              autoComplete="off" // <- This disables browser autocomplete
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="drawing_rev_number">
-              Drawing Rev Number
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="drawing_rev_number"
-              name="drawing_rev_number"
-              type="text"
-              value={formData.drawing_rev_number}
-              autoComplete="off" // <- This disables browser autocomplete
-              onChange={(e) => handleInputChange('drawing_rev_number', e.target.value)}
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="drawing_rev_date">
-              Drawing Rev Date
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="drawing_rev_date"
-              name="drawing_rev_date"
-              type="text"
-              value={formData.drawing_rev_date}
-              onChange={(e) => handleInputChange('drawing_rev_date', e.target.value)}
-              autoComplete="off" // <- This disables browser autocomplete
-            />
-          </div>
-
-          {/* Material Information */}
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="standerd">
-              Standard*
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="standerd"
-              name="standerd"
-              type="text"
-              value={formData.standerd}
-              onChange={(e) => handleInputChange('standerd', e.target.value)}
-              autoComplete="off" // <- This disables browser autocomplete
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="supplier">
-              Supplier*
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="supplier"
-              name="supplier"
-              type="text"
-              value={formData.supplier}
-              onChange={(e) => handleInputChange('supplier', e.target.value)}
-              autoComplete="off" // <- This disables browser autocomplete
-              required
-            />
-          </div>
-
-          {/* Material Grade with suggestions */}
-          <div className="mb-4 relative">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="grade">
-              Material Grade*
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="grade"
-              name="grade"
-              type="text"
-              value={formData.grade}
-              onChange={(e) => handleInputChange('grade', e.target.value)}
-              autoComplete="off" // <- This disables browser autocomplete
-              required
-            />
-            {suggestions.grade.length > 0 && (
-              <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                {suggestions.grade.map((item, index) => (
-                  <li
-                    key={index}
-                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                    onClick={() => handleSuggestionClick('grade', item)}
-                  >
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-         
-
-          {/* Additional Fields */}
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="dia">
-              Bar Diameter(MM)*
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="dia"
-              name="dia"
-              type="number"
-              value={formData.dia}
-              onChange={(e) => handleInputChange('dia', e.target.value)}
-              autoComplete="off" // <- This disables browser autocomplete
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="ht_process">
-              HT Process*
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="ht_process"
-              name="ht_process"
-              type="text"
-              value={formData.ht_process}
-              onChange={(e) => handleInputChange('ht_process', e.target.value)}
-              autoComplete="off" // <- This disables browser autocomplete
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="slug_weight">
-              Slug Weight(Kg)*
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="slug_weight"
-              name="slug_weight"
-              type="number"
-              step="0.01"
-              value={formData.slug_weight}
-              onChange={(e) => handleInputChange('slug_weight', e.target.value)}
-              autoComplete="off" // <- This disables browser autocomplete
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="ring_weight">
-              Ring Weight(Kg)*
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="ring_weight"
-              name="ring_weight"
-              type="number"
-              step="0.01"
-              value={formData.ring_weight}
-              onChange={(e) => handleInputChange('ring_weight', e.target.value)}
-              autoComplete="off" // <- This disables browser autocomplete
-              required
-            />
-          </div>
-
-          {/* Cost and Time Information */}
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="cost">
-              Cost(Rs)*
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="cost"
-              name="cost"
-              type="number"
-              step="0.01"
-              value={formData.cost}
-              autoComplete="off" // <- This disables browser autocomplete
-              onChange={(e) => handleInputChange('cost', e.target.value)}
-              required
-            />
-          </div>
-
-        
-
-          {/* Optional Fields */}
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="customer_location">
-              Delivery Location
-            </label>
-            <select
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="customer_location"
-              name="customer_location"
-              value={formData.customer_location}
-              onChange={(e) => handleInputChange('customer_location', e.target.value)}
+          {/* Render suggestion fields with dropdowns */}
+          {suggestionFields.map((field) => (
+            <div 
+              key={field.id} 
+              className="mb-4 relative"
+              ref={el => dropdownRefs.current[field.id] = el}
             >
-              <option value="">Select Location</option>
-              {dropdownOptions.customer_location.map((option, index) => (
-                <option key={index} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </div>
+              <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor={field.id}>
+                {field.label}
+              </label>
+              <div className="relative">
+                <input
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  id={field.id}
+                  name={field.id}
+                  type="text"
+                  value={formData[field.id]}
+                  onChange={(e) => handleInputChange(field.id, e.target.value)}
+                  onFocus={() => handleInputFocus(field.id)}
+                  onBlur={(e) => handleInputBlur(field.id, e.target.value)}
+                  autoComplete="off"
+                  required={field.required}
+                  placeholder={`Type to search ${field.label.toLowerCase()}...`}
+                />
+                {formData[field.id] && (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, [field.id]: "" }));
+                      setSelectedValues(prev => ({ ...prev, [field.id]: null }));
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
 
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="forging_line">
-              Forging Line
-            </label>
-            <select
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="forging_line"
-              name="forging_line"
-              value={formData.forging_line}
-              onChange={(e) => handleInputChange('forging_line', e.target.value)}
-            >
-              <option value="">Select Forging Line</option>
-              {dropdownOptions.forging_line.map((option, index) => (
-                <option key={index} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </div>
+              {activeDropdown === field.id && filteredSuggestions[field.id].length > 0 && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                  {filteredSuggestions[field.id].map((item, index) => {
+                    const displayValue = getDisplayValue(item);
+                    return (
+                      <div
+                        key={index}
+                        className={`px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 ${
+                          selectedValues[field.id] === item ? 'bg-blue-100' : ''
+                        }`}
+                        onClick={() => handleSuggestionClick(field.id, item)}
+                        onMouseDown={(e) => e.preventDefault()} // Prevent blur before click
+                      >
+                        <div className="font-medium">{displayValue}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="hardness_required">
-              Hardness Required
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="hardness_required"
-              name="hardness_required"
-              type="text"
-              value={formData.hardness_required}
-              autoComplete="off" // <- This disables browser autocomplete
-              onChange={(e) => handleInputChange('hardness_required', e.target.value)}
-            />
-          </div>
+              {activeDropdown === field.id && filteredSuggestions[field.id].length === 0 && formData[field.id] && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
+                  <div className="px-4 py-2 text-gray-500 text-center">
+                    No matches found
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
 
-          <div className="mb-4">
+          {/* Select fields */}
+          <div className="mb-2">
             <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="running_status">
               Running Status
             </label>
@@ -514,82 +474,8 @@ const { user } = useAuth();
             </select>
           </div>
 
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="packing_condition">
-              Packing Condition
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="packing_condition"
-              name="packing_condition"
-              type="text"
-              value={formData.packing_condition}
-              autoComplete="off" // <- This disables browser autocomplete
-              onChange={(e) => handleInputChange('packing_condition', e.target.value)}
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="op_10_time">
-              OP 10 Time (seconds)
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="op_10_time"
-              name="op_10_time"
-              type="number"
-              value={formData.op_10_time}
-              autoComplete="off" // <- This disables browser autocomplete
-              onChange={(e) => handleInputChange('op_10_time', e.target.value)}
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="op_10_target">
-              OP 10 Target
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="op_10_target"
-              name="op_10_target"
-              type="number"
-              value={formData.op_10_target}
-              autoComplete="off" // <- This disables browser autocomplete
-              onChange={(e) => handleInputChange('op_10_target', e.target.value)}
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="op_20_time">
-              OP 20 Time (seconds)
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="op_20_time"
-              name="op_20_time"
-              type="number"
-              value={formData.op_20_time}
-              autoComplete="off" // <- This disables browser autocomplete
-              onChange={(e) => handleInputChange('op_20_time', e.target.value)}
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="op_20_target">
-              OP 20 Target
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="op_20_target"
-              name="op_20_target"
-              type="number"
-              value={formData.op_20_target}
-              autoComplete="off" // <- This disables browser autocomplete
-              onChange={(e) => handleInputChange('op_20_target', e.target.value)}
-            />
-          </div>
-
-          <div className="mb-4">
+          {/* Textarea field */}
+          <div className="mb-2 col-span-1 md:col-span-2 lg:col-span-1">
             <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="cnc_target_remark">
               CNC Target Remark
             </label>
@@ -598,14 +484,14 @@ const { user } = useAuth();
               id="cnc_target_remark"
               name="cnc_target_remark"
               value={formData.cnc_target_remark}
-              autoComplete="off" // <- This disables browser autocomplete
               onChange={(e) => handleInputChange('cnc_target_remark', e.target.value)}
+              autoComplete="off"
               rows="1"
             />
           </div>
 
           {/* Verified By (non-editable) */}
-          <div className="mb-4">
+          <div className="mb-2">
             <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="verified_by">
               Verified By*
             </label>
@@ -630,8 +516,6 @@ const { user } = useAuth();
           </button>
         </div>
       </form>
-    </div>
-    
     </div>
   );
 };

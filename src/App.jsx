@@ -11,6 +11,10 @@ import ProductionAnalysis from './pages/department/schedule/ProductionAnalysis';
 import Master_list from './pages/department/masterlist/Master_list';
 import MasterlistForm from './pages/department/masterlist/MasterlistForm';
 
+import ManualDocumentsPage from './pages/department/QMS/ManualDocumentsPage';
+import ProcedureDocumentsPage from './pages/department/QMS/ProcedureDocumentsPage';
+import QmsDocumentViewer from './pages/department/QMS/Qmsocumentviewer'; 
+
 import RMReceivingPage from "./pages/department/raw_material/RMReceivingPage";
 import HoldMaterialPage from "./pages/department/raw_material/HoldMaterialPage";
 import BatchTrackingPage from "./pages/department/raw_material/BatchTrackingPage";
@@ -389,6 +393,30 @@ function App() {
           element={
             <ProtectedRoute requiredPath="/dispatch/DispatchDashboard">
               <DispatchDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/QMS/ManualDocumentsPage"
+          element={
+            <ProtectedRoute requiredPath="/QMS/ManualDocumentsPage">
+              <ManualDocumentsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/QMS/ProcedureDocumentsPage"
+          element={
+            <ProtectedRoute requiredPath="/QMS/ProcedureDocumentsPage">
+              <ProcedureDocumentsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/QMS/QmsDocumentViewer"
+          element={
+            <ProtectedRoute requiredPath="/QMS/QmsDocumentViewer">
+              <QmsDocumentViewer />
             </ProtectedRoute>
           }
         />

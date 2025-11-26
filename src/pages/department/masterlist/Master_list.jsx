@@ -64,7 +64,8 @@ import MissingDocumentsAlert from './MissingDocumentsAlert';
 import { useNavigate } from 'react-router-dom';
 import api,{ BASE_URL } from "../../services/service";
 import { useAuth } from "../../../context/AuthContext";
-import SpcDetailsDialog from './SpcDetailsDialog';  // Adjust the path as needed
+import SpcDetailsDialog from './SpcDetailsDialog';
+import EditMasterlistDialog from './EditMasterlistDialog'; // Import the new edit dialog
 
 const RAW_MATERIAL_BASE_URL = `${BASE_URL}api/raw_material`;
 
@@ -177,40 +178,22 @@ const MasterlistPage = () => {
     running_status: [],
   });
   const [isSidebarVisible, setIsSidebarVisible] = useState(!isMobile);
-  const [suggestions, setSuggestions] = useState({ 
-    grade: [],
-  });
   const [spcDialogOpen, setSpcDialogOpen] = useState(false);
   const [spcData, setSpcData] = useState(null);
 
-  
-
- const handleSeeSpc = async (component, masterlist) => {
-  try {
-    const res = await api.get(`/raw_material/api/spc/component/${component}/`);
-    setSpcData({
-      component: component,
-      customer: masterlist.customer,
-      dimensions: res.data,
-    });
-    setSpcDialogOpen(true);
-  } catch (error) {
-    console.error("Error fetching SPC data:", error);
-  }
-};
-
-  // Set verified_by from user data when component mounts
-   useEffect(() => {
-      if (user) {
-        const firstName = user.first_name || user.name || "";
-        const lastName = user.last_name || user.lastname || "";
-  
-        setFormData(prev => ({
-          ...prev,
-          verified_by: `${firstName} ${lastName}`.trim()
-        }));
-      }
-    }, [user]);
+  const handleSeeSpc = async (component, masterlist) => {
+    try {
+      const res = await api.get(`api/raw_material/spc/component/${component}/`);
+      setSpcData({
+        component: component,
+        customer: masterlist.customer,
+        dimensions: res.data,
+      });
+      setSpcDialogOpen(true);
+    } catch (error) {
+      console.error("Error fetching SPC data:", error);
+    }
+  };
 
   // Memoized filtered data
   const filteredMasterlists = useMemo(() => {
@@ -293,81 +276,22 @@ const MasterlistPage = () => {
   }, [fetchMasterlists]);
 
   const handleOpenDialog = useCallback((masterlist = null) => {
-    if (user) {
-      const fullName = `${user.name} ${user.lastname}`;
-      setFormData(masterlist ? { 
-        ...masterlist,
-        verified_by: fullName
-      } : { 
-        ...initialFormState,
-        verified_by: fullName 
-      });
-    } else {
-      setFormData(masterlist ? { 
-        ...masterlist,
-        verified_by: masterlist.verified_by || "Unknown"
-      } : { 
-        ...initialFormState,
-        verified_by: "Unknown" 
-      });
-    }
-    
     setSelectedMasterlist(masterlist);
     setOpenDialog(true);
-  }, [user]);
+  }, []);
 
   const handleCloseDialog = useCallback(() => {
     setOpenDialog(false);
     setSelectedMasterlist(null);
   }, []);
 
-  const handleInputChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  
-    // Only fetch suggestions for grade when more than 1 character is typed
-    if (name === 'grade' && value.length > 1) {
-      const fetchSuggestions = async () => {
-        try {
-          const response = await api.get(`${RAW_MATERIAL_BASE_URL}/grades_suggestions/`, {
-            params: { q: value },
-          });
-          setSuggestions(prev => ({ ...prev, grade: response.data }));
-        } catch (error) {
-          console.error('Failed to fetch material grade suggestions:', error);
-        }
-      };
-      fetchSuggestions();
-    } else {
-      setSuggestions(prev => ({ ...prev, grade: [] }));
-    }
-  }, []);
-
-  const handleRedirect = () => {
-    navigate('/MasterlistForm');
-  };
-
-  const handleSuggestionClick = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    setSuggestions(prev => ({ ...prev, [field]: [] }));
-  };
-  
-  const handleBlur = (field) => {
-    const suggestionFields = ['grade'];
-    if (suggestionFields.includes(field)) {
-      if (!suggestions[field]?.includes(formData[field])) {
-        setFormData(prev => ({ ...prev, [field]: '' }));
-      }
-    }
-  };
-
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (formData) => {
     try {
       const formDataWithVerification = {
         ...formData,
         verified_by: formData.verified_by || "Unknown"
       };
-  
+
       if (selectedMasterlist) {
         await api.put(`${RAW_MATERIAL_BASE_URL}/masterlistn/${selectedMasterlist.id}/`, formDataWithVerification);
         showSnackbar('Component updated successfully', 'success');
@@ -377,10 +301,16 @@ const MasterlistPage = () => {
       }
       fetchMasterlists();
       handleCloseDialog();
+      return true;
     } catch (err) {
       showSnackbar(err.response?.data || 'Error saving component', 'error');
+      return false;
     }
-  }, [formData, selectedMasterlist, fetchMasterlists, handleCloseDialog]);
+  }, [selectedMasterlist, fetchMasterlists, handleCloseDialog]);
+
+  const handleRedirect = () => {
+    navigate('/MasterlistForm');
+  };
 
   const handleDelete = useCallback(async (id) => {
     try {
@@ -394,7 +324,7 @@ const MasterlistPage = () => {
 
   const handleOpenUploadDialog = useCallback(async (masterlist, docType = '') => {
     if (user) {
-      const fullName = `${user.name} ${user.lastname}`;
+      const fullName =`${user.first_name || user.name || ""} ${user.last_name || user.lastname || ""}`;
       setDocumentForm(prev => ({ 
         ...prev, 
         document_type: docType || prev.document_type || '',
@@ -436,7 +366,7 @@ const MasterlistPage = () => {
       formData.append('document', documentForm.document);
       formData.append('remarks', documentForm.remarks);
       formData.append('verified_by', documentForm.verified_by);
-  
+
       const response = await api.post(
         `${RAW_MATERIAL_BASE_URL}/masterlistn/${selectedMasterlist.id}/documents/upload/`,
         formData,
@@ -446,7 +376,7 @@ const MasterlistPage = () => {
           }
         }
       );
-  
+
       // Update the selected masterlist's documents
       setSelectedMasterlist(prev => {
         const updatedDocuments = [...(prev.documents || [])];
@@ -467,7 +397,7 @@ const MasterlistPage = () => {
           documents: updatedDocuments
         };
       });
-  
+
       showSnackbar('Document uploaded successfully', 'success');
       handleCloseUploadDialog();
     } catch (err) {
@@ -545,7 +475,7 @@ const MasterlistPage = () => {
     const customerDisplay = typeof masterlist.customer === 'object' 
       ? masterlist.customer?.name || 'No Customer' 
       : masterlist.customer || 'No Customer';
-  
+
     // Create tooltip content
     const tooltipContent = (
       <Box
@@ -596,7 +526,7 @@ const MasterlistPage = () => {
               <Typography variant="h6" component="div">
                 {masterlist.component}
               </Typography>
-  
+
               <Stack direction="row" spacing={1}>
                 <Chip 
                   label={customerDisplay} 
@@ -616,7 +546,7 @@ const MasterlistPage = () => {
                 />
               </Stack>
             </Stack>
-  
+
             <Typography variant="subtitle1" color="text.secondary">
               {masterlist.part_name}
             </Typography>
@@ -668,19 +598,16 @@ const MasterlistPage = () => {
                 >
                   <HistoryIcon fontSize="small" />
                 </IconButton>
-
               </Tooltip>
-               <Tooltip title="SPC Dimension">
-              
+              <Tooltip title="SPC Dimension">
                 <IconButton
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleSeeSpc(masterlist.component, masterlist);
-                }}
-              >
-                <AssessmentIcon />
-              </IconButton>
-
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSeeSpc(masterlist.component, masterlist);
+                  }}
+                >
+                  <AssessmentIcon />
+                </IconButton>
               </Tooltip>
             </Stack>
           </CardContent>
@@ -797,9 +724,9 @@ const MasterlistPage = () => {
 
           {currentTab === 0 && (
             <>
-              <Grid container spacing={1}>  {/* Reduced spacing from 3 to 2 */}
+              <Grid container spacing={1}>
                 {masterlists.map((masterlist) => (
-                  <Grid item xs={12} sm={6} md={4} lg={3} key={masterlist.id}>  {/* Added lg={3} */}
+                  <Grid item xs={12} sm={6} md={4} lg={3} key={masterlist.id}>
                     <MasterlistCard masterlist={masterlist} />
                   </Grid>
                 ))}
@@ -822,24 +749,23 @@ const MasterlistPage = () => {
                 <Typography variant="h5">
                   {selectedMasterlist.component} - {selectedMasterlist.part_name} - {selectedMasterlist.verified_by}
                 </Typography>
-                 <Stack direction="row" spacing={0.25}> {/* Changed from spacing={1} to spacing={0.25} for ~2px gap */}
-        {/* SPC Dimension button with 2px gap to Edit button */}
-        <Button
-          variant="outlined"
-          startIcon={<AssessmentIcon />}
-          onClick={() => handleSeeSpc(selectedMasterlist.component, selectedMasterlist)}
-          sx={{ mr: 0.25 }} // Additional 2px margin-right for precise spacing
-        >
-          SPC Dimension
-        </Button>
-        <Button
-          variant="outlined"
-          startIcon={<EditIcon />}
-          onClick={() => handleOpenDialog(selectedMasterlist)}
-        >
-          Edit
-        </Button>
-      </Stack>
+                <Stack direction="row" spacing={0.25}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<AssessmentIcon />}
+                    onClick={() => handleSeeSpc(selectedMasterlist.component, selectedMasterlist)}
+                    sx={{ mr: 0.25 }}
+                  >
+                    SPC Dimension
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<EditIcon />}
+                    onClick={() => handleOpenDialog(selectedMasterlist)}
+                  >
+                    Edit
+                  </Button>
+                </Stack>
               </Stack>
 
               <Grid container spacing={2}>
@@ -852,6 +778,7 @@ const MasterlistPage = () => {
                     <Table size="small">
                       <TableBody>
                         <TableRow><TableCell sx={{ fontWeight: 'bold' }}>Customer</TableCell><TableCell>{selectedMasterlist.customer}</TableCell></TableRow>
+                        <TableRow><TableCell sx={{ fontWeight: 'bold' }}>Approved Supplier</TableCell><TableCell>{selectedMasterlist.supplier}</TableCell></TableRow>
                         <TableRow><TableCell sx={{ fontWeight: 'bold' }}>Location</TableCell><TableCell>{selectedMasterlist.customer_location}</TableCell></TableRow>
                         <TableRow><TableCell sx={{ fontWeight: 'bold' }}>Drawing Revision Number</TableCell><TableCell>{selectedMasterlist.drawing_rev_number}</TableCell></TableRow>
                         <TableRow><TableCell sx={{ fontWeight: 'bold' }}>Drawing Revision Date</TableCell><TableCell>{selectedMasterlist.drawing_rev_date}</TableCell></TableRow>
@@ -1086,285 +1013,13 @@ const MasterlistPage = () => {
         </>
       )}
 
-      {/* Add/Edit Component Dialog */}
-      <Dialog 
-        open={openDialog} 
-        onClose={handleCloseDialog} 
-        maxWidth="md" 
-        fullWidth
-        fullScreen={isMobile}
-      >
-        <DialogTitle>
-          {selectedMasterlist ? 'Edit Component' : 'Add New Component'}
-        </DialogTitle>
-        <DialogContent dividers>
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Component Name"
-                name="component"
-                value={formData.component}
-                onChange={handleInputChange}
-                margin="normal"
-                required
-                InputProps={{
-                  readOnly: !!selectedMasterlist,
-                }}
-              />
-              <TextField
-                fullWidth
-                label="Part Name"
-                name="part_name"
-                value={formData.part_name}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                select
-                label="Running Status"
-                name="running_status"
-                value={formData.running_status}
-                onChange={handleInputChange}
-                margin="normal"
-              >
-                <MenuItem value="Running">Running</MenuItem>
-                <MenuItem value="Not Running">Not Running</MenuItem>
-                <MenuItem value="NPD">NPD</MenuItem>
-              </TextField>
-              <TextField
-                fullWidth
-                label="Location"
-                name="customer_location"
-                value={formData.customer_location}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="Drawing Number"
-                name="drawing_sr_number"
-                value={formData.drawing_sr_number}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="Drawing Rev Number"
-                name="drawing_rev_number"
-                value={formData.drawing_rev_number}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="Drawing Rev Date"
-                name="drawing_rev_date"
-                type="date"
-                value={formData.drawing_rev_date}
-                onChange={handleInputChange}
-                margin="normal"
-                InputLabelProps={{
-                  shrink: true,
-                }}
-              />
-              <TextField
-                fullWidth
-                label="Packing Condition"
-                name="packing_condition"
-                value={formData.packing_condition}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Forging Line"
-                name="forging_line"
-                value={formData.forging_line}
-                onChange={handleInputChange}
-                margin="normal"
-              >
-                
-              </TextField>
-              <TextField
-                fullWidth
-                label="Material Grade"
-                name="grade"
-                value={formData.grade}
-                onChange={handleInputChange}
-                onBlur={() => setTimeout(() => setSuggestions(prev => ({ ...prev, grade: [] })), 200)}
-                margin="normal"
-                autoComplete="off"
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      {loading && <CircularProgress size={20} />}
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              {/* Suggestions dropdown */}
-              {suggestions.grade.length > 0 && (
-                <Paper 
-                  elevation={3} 
-                  sx={{ 
-                    position: 'absolute', 
-                    zIndex: 50, 
-                    mt: -2, 
-                    width: '100%', 
-                    maxHeight: 200, 
-                    overflow: 'auto' 
-                  }}
-                >
-                  <List>
-                    {suggestions.grade.map((grade, index) => (
-                      <ListItem 
-                        key={index} 
-                        button 
-                        onClick={() => {
-                          setFormData(prev => ({ ...prev, grade: grade }));
-                          setSuggestions(prev => ({ ...prev, grade: [] }));
-                        }}
-                      >
-                        <ListItemText primary={grade} />
-                      </ListItem>
-                    ))}
-                  </List>
-                </Paper>
-              )}
-              <TextField
-                fullWidth
-                label="Slug Weight"
-                name="slug_weight"
-                value={formData.slug_weight}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="Bar Diameter"
-                name="dia"
-                value={formData.dia}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="Ring Weight"
-                name="ring_weight"
-                value={formData.ring_weight}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="ht_process"
-                name="ht_process"
-                value={formData.ht_process}
-                onChange={handleInputChange}
-                margin="normal"
-                
-              >
-                
-              </TextField>
-              <TextField
-                fullWidth
-                label="Hard-ness Required"
-                name="hardness_required"
-                value={formData.hardness_required}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <Divider sx={{ my: 2 }} />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Cost"
-                name="cost"
-                value={formData.cost}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="Component Cycle Time"
-                name="component_cycle_time"
-                value={formData.component_cycle_time}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="OP 10 Time"
-                name="op_10_time"
-                value={formData.op_10_time}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="OP 10 Target"
-                name="op_10_target"
-                value={formData.op_10_target}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="OP 20 Time"
-                name="op_20_time"
-                value={formData.op_20_time}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="OP 20 Target"
-                name="op_20_target"
-                value={formData.op_20_target}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="CNC Target Remark"
-                name="cnc_target_remark"
-                value={formData.cnc_target_remark}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Verified By"
-                name="verified_by"
-                value={formData.verified_by}
-                onChange={handleInputChange}
-                margin="normal"
-                required
-                InputProps={{
-                  readOnly: true,
-                }}
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button onClick={handleSubmit} variant="contained" color="primary">
-            {selectedMasterlist ? 'Update' : 'Save'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Enhanced Edit Dialog */}
+      <EditMasterlistDialog
+        open={openDialog}
+        onClose={handleCloseDialog}
+        selectedMasterlist={selectedMasterlist}
+        onSave={handleSubmit}
+      />
 
       {/* Upload Document Dialog */}
       <Dialog 
@@ -1510,12 +1165,12 @@ const MasterlistPage = () => {
           <Button onClick={() => setOpenHistoryDialog(false)}>Close</Button>
         </DialogActions>
       </Dialog>
-      {/* Add this near the end of your MasterlistPage component, before the closing </Box> */}
-<SpcDetailsDialog 
-  open={spcDialogOpen} 
-  onClose={() => setSpcDialogOpen(false)} 
-  data={spcData}
-/>
+
+      <SpcDetailsDialog 
+        open={spcDialogOpen} 
+        onClose={() => setSpcDialogOpen(false)} 
+        data={spcData}
+      />
 
       {/* Snackbar */}
       <Snackbar

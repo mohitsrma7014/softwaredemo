@@ -213,10 +213,12 @@ const Sidebar = ({ logout, onWidthChange }) => {
       ],
     },
     {
-      name: "Human Resources",
+      name: "Inventory",
       icon: "users2",
       children: [
-        { name: "Dispatch Data", path: "/rejection/forging" },
+        { name: "Packing Inventory Trnsiction", path: "/Packing_are_inventory/AddTransactionModal" },
+        { name: "Inventory Summary", path: "/Packing_are_inventory/InventorySummary" },
+
       ],
     },
   ];

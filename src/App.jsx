@@ -58,6 +58,9 @@ import Visual_form from "./pages/department/visual/Visual_form";
 import Visual_list from "./pages/department/visual/Visual_list";
 import VisualDashboard from "./pages/department/visual/VisualDashboard";
 
+import AddTransactionModal from "./pages/department/Packing_are_inventory/PackingHome";
+import InventorySummary from "./pages/department/Packing_are_inventory/InventorySummary";
+
 
 function App() {
   return (
@@ -417,6 +420,23 @@ function App() {
           element={
             <ProtectedRoute requiredPath="/QMS/QmsDocumentViewer">
               <QmsDocumentViewer />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/Packing_are_inventory/AddTransactionModal"
+          element={
+            <ProtectedRoute requiredPath="/Packing_are_inventory/AddTransactionModal">
+              <AddTransactionModal />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/Packing_are_inventory/InventorySummary"
+          element={
+            <ProtectedRoute requiredPath="/Packing_are_inventory/InventorySummary">
+              <InventorySummary />
             </ProtectedRoute>
           }
         />
